@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>AssistantPro</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.770916292247-dt26heu6uqh367vnrbfc0agig8ed3s8m</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>GIDClientID</key>
+	<string>770916292247-dt26heu6uqh367vnrbfc0agig8ed3s8m.apps.googleusercontent.com</string>
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-4934175729303466~2964119031</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Assistant Pro uses your location to provide relevant, location-aware responses such as navigation help and local information.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Assistant Pro uses the microphone to listen to your voice commands and send them to the AI assistant.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Assistant Pro uses the camera when you choose to take a picture to share with the assistant.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Assistant Pro may access your photo library if you choose to share an image with the assistant.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Assistant Pro may save photos captured in-app to your photo library when you choose to keep them.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Assistant Pro uses speech recognition to convert your spoken words into text so the AI can respond to you.</string>
+	<key>RCTNewArchEnabled</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+</dict>
+</plist>

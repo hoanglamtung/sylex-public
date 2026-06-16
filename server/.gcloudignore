@@ -1,0 +1,33 @@
+# .gcloudignore — excludes files from `gcloud run deploy --source` upload
+# Buildpacks will install production dependencies from package.json
+# Dockerfile is excluded so GCP Buildpacks auto-detects Node.js (no Docker build)
+
+Dockerfile*
+node_modules/
+credentials/
+npm-debug.log
+yarn-error.log
+
+# Local environment — secrets are set via Secret Manager / Cloud Run env vars
+.env
+.env.*
+!.env.example
+
+# Tests & dev tooling
+*.test.js
+*.spec.js
+__tests__/
+coverage/
+.nyc_output/
+
+# VCS
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

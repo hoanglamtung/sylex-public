@@ -1,0 +1,120 @@
+# Resolve react_native_pods.rb with node to allow for hoisting
+require Pod::Executable.execute_command('node', ['-p',
+  'require.resolve(
+    "react-native/scripts/react_native_pods.rb",
+    {paths: [process.argv[1]]},
+  )', __dir__]).strip
+
+# Disable React-Core-prebuilt (pre-built dynamic React.framework).
+# With use_frameworks! :linkage => :static, React is already built from source
+# as a static framework and linked directly into the app binary.
+# Embedding the pre-built dynamic React.xcframework on top of the static link
+# causes duplicate ObjC classes (React.framework vs AssistantPro.debug.dylib)
+# which splits the TurboModule registry across two dylib contexts, making
+# PlatformConstants (and all NativeModules) invisible → "runtime not ready" crash.
+ENV['RCT_USE_PREBUILT_RNCORE'] = '0'
+
+platform :ios, min_ios_version_supported
+prepare_react_native_project!
+
+# Required for @react-native-firebase — forces Firebase pods to be built as
+# static frameworks, which avoids duplicate symbol errors with the New Arch.
+$RNFirebaseAsStaticFramework = true
+
+# NOTE: Do NOT use `use_modular_headers!` globally — it breaks gRPC-C++ dummy
+# module maps (Firestore dependency). Instead, apply :modular_headers => true
+# only to the specific Swift Firebase pods that require module maps.
+
+# use_frameworks! :linkage => :static is required for Firebase 11+ with Xcode 26.
+# Without it, FirebaseAuth-Swift.h (generated during Swift module compilation)
+# is not placed in a searchable framework path, causing a hard "file not found"
+# when Firebase.h's umbrella guard passes and tries to import it.
+linkage = ENV['USE_FRAMEWORKS'] || 'static'
+Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+use_frameworks! :linkage => linkage.to_sym
+
+target 'AssistantPro' do
+  config = use_native_modules!
+
+  # NitroModules is required by react-native-iap v14 (Nitro-based) and is not
+  # on the CocoaPods trunk — link it from the local node_modules path.
+  pod 'NitroModules', :path => '../node_modules/react-native-nitro-modules'
+
+  # Modular headers required for Swift-based Firebase static libs (gRPC excluded)
+  pod 'FirebaseCore', :modular_headers => true
+  pod 'FirebaseCoreInternal', :modular_headers => true
+  pod 'FirebaseCoreExtension', :modular_headers => true
+  pod 'FirebaseAuthInterop', :modular_headers => true
+  pod 'FirebaseAppCheckInterop', :modular_headers => true
+  pod 'FirebaseFirestoreInternal', :modular_headers => true
+  pod 'GoogleUtilities', :modular_headers => true
+  pod 'RecaptchaInterop', :modular_headers => true
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    # An absolute path to your application root.
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false,
+      # :ccache_enabled => true
+    )
+    # Fix: @react-native-firebase pods import React-Core headers with angle-bracket
+    # includes that are not part of a module map. With use_frameworks!, Clang treats
+    # this as an error (-Werror=non-modular-include-in-framework-module). Allowing
+    # non-modular includes per-pod is the standard documented fix for RNFB + use_frameworks!.
+    # Also: FirebaseAuth umbrella uses double-quoted "FIRAuth.h" etc. Xcode 26's
+    # VerifyModule step enforces -Werror=quoted-include-in-framework-header which
+    # breaks the FirebaseAuth module build. Disabling that warning globally for pods.
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |build_config|
+        build_config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        build_config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+        # Fix: react-native-xcode.sh writes ip.txt at build time. Xcode 26's default
+        # ENABLE_USER_SCRIPT_SANDBOXING=YES blocks that file-write with a sandbox deny.
+        # Setting it to NO here ensures both CLI and Xcode GUI builds work without
+        # needing to pass it as an extra build flag every time.
+        build_config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+      end
+    end
+    # Fix: With Xcode 26 explicit module builds, RNFBxx.pcm is precompiled without
+    # React as an explicit module dependency. This means #import <React/RCTBridgeModule.h>
+    # silently no-ops, leaving RCTPromiseRejectBlock and other React types unknown.
+    # Setting DEFINES_MODULE = NO for RNFB pods prevents them from being treated as
+    # framework modules at all, so headers compile via direct include (not PCM), and
+    # they correctly see the React headers on the include path.
+    ['RNFBApp', 'RNFBAuth', 'RNFBFirestore'].each do |rnfb_pod|
+      installer.pods_project.targets.select { |t| t.name == rnfb_pod }.each do |target|
+        target.build_configurations.each do |config|
+          config.build_settings['DEFINES_MODULE'] = 'NO'
+        end
+      end
+    end
+    # Fix: react-native-screens 4.10.0 podspec sets HEADER_SEARCH_PATHS to
+    # $(PODS_TARGET_SRCROOT)/common/cpp, but:
+    # 1. RNSScreen*.mm files import <rnscreens/RNSScreen*ComponentDescriptor.h>
+    #    which requires common/cpp/react/renderer/components on the search path.
+    # 2. RNSFullWindowOverlay.h / UIView+RNSUtility.h import
+    #    <React/RCTViewComponentView.h> / <React/RCTSurfaceTouchHandler.h>
+    #    which live in RCTFabric.framework/Headers/React/. The pod only declares
+    #    React-RCTImage as a dependency, so RCTFabric headers aren't explicitly
+    #    added. Use BUILD_DIR to point to the shared configuration products dir.
+    installer.pods_project.targets.select { |t| t.name == 'RNScreens' }.each do |target|
+      target.build_configurations.each do |bc|
+        existing = bc.build_settings['HEADER_SEARCH_PATHS']
+        # CocoaPods may store this as a String or an Array — normalise to Array.
+        paths = existing.is_a?(Array) ? existing.dup : [existing || '$(inherited)']
+        extras = [
+          '"$(PODS_TARGET_SRCROOT)/common/cpp/react/renderer/components"',
+          '"$(BUILD_DIR)/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/React-RCTFabric/RCTFabric.framework/Headers"',
+        ]
+        extras.each { |e| paths << e unless paths.include?(e) }
+        bc.build_settings['HEADER_SEARCH_PATHS'] = paths
+      end
+    end
+  end
+end

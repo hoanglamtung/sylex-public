@@ -1,0 +1,42 @@
+buildscript {
+    ext {
+        buildToolsVersion = "36.0.0"
+        minSdkVersion = 24
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        ndkVersion = "27.1.12297006"
+        kotlinVersion = "2.1.20"
+        // Pin Play Billing to the version bundled by react-native-iap
+        playBillingVersion = "7.1.1"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.2.2")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+        classpath("com.google.gms:google-services:4.4.2")
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"
+ext {
+}
+
+// Gradle 9.0 requires compileSdk to be explicitly declared in every module.
+// Many older RN libraries omit it, so we set a default for all subprojects.
+subprojects {
+    plugins.withId("com.android.library") {
+        android {
+            if (!compileSdkVersion) {
+                compileSdkVersion rootProject.ext.compileSdkVersion
+            }
+            lint {
+                abortOnError = false
+                checkReleaseBuilds = false
+            }
+        }
+    }
+}

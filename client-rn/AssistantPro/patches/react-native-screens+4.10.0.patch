@@ -1,0 +1,110 @@
+diff --git a/node_modules/react-native-screens/android/build.gradle b/node_modules/react-native-screens/android/build.gradle
+index 872d44e..af015f1 100644
+--- a/node_modules/react-native-screens/android/build.gradle
++++ b/node_modules/react-native-screens/android/build.gradle
+@@ -224,7 +224,6 @@ repositories {
+ 
+ dependencies {
+     implementation 'com.facebook.react:react-native:+'
+-    implementation 'androidx.appcompat:appcompat:1.6.1'
+     implementation 'androidx.fragment:fragment-ktx:1.6.1'
+     implementation 'androidx.coordinatorlayout:coordinatorlayout:1.2.0'
+     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/CustomToolbar.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/CustomToolbar.kt
+index 4772f7c..a43369d 100644
+--- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/CustomToolbar.kt
++++ b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/CustomToolbar.kt
+@@ -7,7 +7,7 @@ import android.view.WindowInsets
+ import android.view.WindowManager
+ import androidx.appcompat.widget.Toolbar
+ import androidx.core.view.WindowInsetsCompat
+-import com.facebook.react.modules.core.ChoreographerCompat
++import android.view.Choreographer
+ import com.facebook.react.modules.core.ReactChoreographer
+ import com.facebook.react.uimanager.ThemedReactContext
+ import com.swmansion.rnscreens.utils.InsetsCompat
+@@ -38,8 +38,8 @@ open class CustomToolbar(
+     private var isForceShadowStateUpdateOnLayoutRequested = false
+ 
+     private var isLayoutEnqueued = false
+-    private val layoutCallback: ChoreographerCompat.FrameCallback =
+-        object : ChoreographerCompat.FrameCallback() {
++    private val layoutCallback: Choreographer.FrameCallback =
++        object : Choreographer.FrameCallback {
+             override fun doFrame(frameTimeNanos: Long) {
+                 isLayoutEnqueued = false
+                 // The following measure specs are selected to work only with Android APIs <= 29.
+diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenContainer.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenContainer.kt
+index a275bc9..9648fe4 100644
+--- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenContainer.kt
++++ b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenContainer.kt
+@@ -12,7 +12,7 @@ import androidx.fragment.app.FragmentManager
+ import androidx.fragment.app.FragmentTransaction
+ import com.facebook.react.ReactRootView
+ import com.facebook.react.bridge.ReactContext
+-import com.facebook.react.modules.core.ChoreographerCompat
++import android.view.Choreographer
+ import com.facebook.react.modules.core.ReactChoreographer
+ import com.facebook.react.uimanager.ThemedReactContext
+ import com.facebook.react.uimanager.UIManagerHelper
+@@ -30,8 +30,8 @@ open class ScreenContainer(
+     private var isAttached = false
+     private var needsUpdate = false
+     private var isLayoutEnqueued = false
+-    private val layoutCallback: ChoreographerCompat.FrameCallback =
+-        object : ChoreographerCompat.FrameCallback() {
++    private val layoutCallback: Choreographer.FrameCallback =
++        object : Choreographer.FrameCallback {
+             override fun doFrame(frameTimeNanos: Long) {
+                 isLayoutEnqueued = false
+                 measure(
+diff --git a/node_modules/react-native-screens/android/src/versioned/backgroundcolor/latest/ViewBackgroundUtils.kt b/node_modules/react-native-screens/android/src/versioned/backgroundcolor/latest/ViewBackgroundUtils.kt
+index e83dbf5..4254b0b 100644
+--- a/node_modules/react-native-screens/android/src/versioned/backgroundcolor/latest/ViewBackgroundUtils.kt
++++ b/node_modules/react-native-screens/android/src/versioned/backgroundcolor/latest/ViewBackgroundUtils.kt
+@@ -2,7 +2,6 @@ package com.swmansion.rnscreens.utils
+ 
+ import com.facebook.react.common.annotations.UnstableReactNativeAPI
+ import com.facebook.react.uimanager.BackgroundStyleApplicator
+-import com.facebook.react.uimanager.drawable.CSSBackgroundDrawable
+ import com.facebook.react.views.view.ReactViewGroup
+ 
+ internal fun ReactViewGroup.resolveBackgroundColor(): Int? = BackgroundStyleApplicator.getBackgroundColor(this)
+diff --git a/node_modules/react-native-screens/common/cpp/react/renderer/components/rnscreens/RNSScreenShadowNode.cpp b/node_modules/react-native-screens/common/cpp/react/renderer/components/rnscreens/RNSScreenShadowNode.cpp
+index 855e04e..64da8f2 100644
+--- a/node_modules/react-native-screens/common/cpp/react/renderer/components/rnscreens/RNSScreenShadowNode.cpp
++++ b/node_modules/react-native-screens/common/cpp/react/renderer/components/rnscreens/RNSScreenShadowNode.cpp
+@@ -15,9 +15,9 @@ Point RNSScreenShadowNode::getContentOriginOffset(
+   return {contentOffset.x, contentOffset.y};
+ }
+ 
+-std::optional<std::reference_wrapper<const ShadowNode::Shared>>
++std::optional<std::reference_wrapper<const std::shared_ptr<const ShadowNode>>>
+ findHeaderConfigChild(const YogaLayoutableShadowNode &screenShadowNode) {
+-  for (const ShadowNode::Shared &child : screenShadowNode.getChildren()) {
++  for (const std::shared_ptr<const ShadowNode> &child : screenShadowNode.getChildren()) {
+     if (std::strcmp(child->getComponentName(), "RNSScreenStackHeaderConfig") ==
+         0) {
+       return {std::cref(child)};
+@@ -82,7 +82,7 @@ std::optional<float> findHeaderHeight(
+ }
+ #endif // ANDROID
+ 
+-void RNSScreenShadowNode::appendChild(const ShadowNode::Shared &child) {
++void RNSScreenShadowNode::appendChild(const std::shared_ptr<const ShadowNode> &child) {
+   YogaLayoutableShadowNode::appendChild(child);
+ #ifdef ANDROID
+   const auto &stateData = getStateData();
+diff --git a/node_modules/react-native-screens/common/cpp/react/renderer/components/rnscreens/RNSScreenShadowNode.h b/node_modules/react-native-screens/common/cpp/react/renderer/components/rnscreens/RNSScreenShadowNode.h
+index 6b4b72e..3379f89 100644
+--- a/node_modules/react-native-screens/common/cpp/react/renderer/components/rnscreens/RNSScreenShadowNode.h
++++ b/node_modules/react-native-screens/common/cpp/react/renderer/components/rnscreens/RNSScreenShadowNode.h
+@@ -28,7 +28,7 @@ class JSI_EXPORT RNSScreenShadowNode final : public ConcreteViewShadowNode<
+ 
+   Point getContentOriginOffset(bool includeTransform) const override;
+ 
+-  void appendChild(const ShadowNode::Shared &child) override;
++  void appendChild(const std::shared_ptr<const ShadowNode> &child) override;
+ 
+   void layout(LayoutContext layoutContext) override;
+ 

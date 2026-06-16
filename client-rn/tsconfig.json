@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "jsx": "react-native",
+    "lib": ["ES2022"],
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2022",
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@hooks/*": ["src/hooks/*"],
+      "@services/*": ["src/services/*"],
+      "@screens/*": ["src/screens/*"],
+      "@components/*": ["src/components/*"],
+      "@i18n/*": ["src/i18n/*"],
+      "@navigation/*": ["src/navigation/*"]
+    }
+  },
+  "include": ["src", "index.js"]
+}

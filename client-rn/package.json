@@ -1,0 +1,46 @@
+{
+  "name": "car-assistant-pro-rn",
+  "version": "1.2.0",
+  "private": true,
+  "scripts": {
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "start": "react-native start",
+    "web": "vite",
+    "web:build": "vite build",
+    "web:preview": "vite preview",
+    "test": "jest",
+    "lint": "eslint src --ext .ts,.tsx",
+    "type-check": "tsc --noEmit",
+    "sync-version": "node scripts/sync-version.js"
+  },
+  "dependencies": {
+    "@notifee/react-native": "^7.8.2",
+    "i18next": "^23.15.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-i18next": "^15.0.3",
+    "react-native-encrypted-storage": "^4.0.1",
+    "react-native-iap": "^14.7.19",
+    "react-native-sse": "^1.2.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@babel/preset-env": "^7.25.0",
+    "@babel/runtime": "^7.25.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "react-test-renderer": "^18.3.1",
+    "typescript": "5.0.4",
+    "vite": "^5.4.10"
+  },
+  "jest": {
+    "preset": "react-native",
+    "setupFilesAfterFramework": [
+      "@testing-library/react-native/extend-expect"
+    ]
+  }
+}

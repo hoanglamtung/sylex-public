@@ -1,0 +1,152 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+apply plugin: "com.google.gms.google-services"
+
+// Tell react-native-svg (and other libs) where node_modules/react-native lives
+// so they don't need to spawn a 'node' process (which fails in Android Studio on macOS)
+rootProject.ext.set("REACT_NATIVE_NODE_MODULES_DIR", file("../../node_modules/react-native").absolutePath)
+
+def keystorePropertiesFile = rootProject.file("../../../android/keystore/keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+/**
+ * This is the configuration block to customize your React Native Android app.
+ * By default you don't need to apply any configuration, just uncomment the lines you need.
+ */
+react {
+    /* Folders */
+    //   The root of your project, i.e. where "package.json" lives. Default is '../..'
+    root = file("../../")
+    //   The folder where the react-native NPM package is. Default is ../../node_modules/react-native
+    reactNativeDir = file("../../node_modules/react-native")
+    //   The folder where the react-native Codegen package is. Default is ../../node_modules/@react-native/codegen
+    codegenDir = file("../../node_modules/@react-native/codegen")
+    //   The cli.js file which is the React Native CLI entrypoint. Default is ../../node_modules/react-native/cli.js
+    cliFile = file("../../node_modules/react-native/cli.js")
+
+    /* Variants */
+    //   Android Studio runs the `debug` variant directly. To make the Run button work
+    //   without a separate Metro terminal, do NOT treat `debug` as a debuggable variant
+    //   for JS bundling; this causes the JS bundle/assets to be packaged into the APK.
+    debuggableVariants = []
+
+    /* Bundling */
+    //   A list containing the node command and its flags. Default is just 'node'.
+    //   Android Studio builds do not inherit the user's shell PATH reliably on macOS,
+    //   so prefer a project-level override from gradle.properties and fall back safely.
+    nodeExecutableAndArgs = [
+        (project.findProperty("NODE_BINARY") ?: System.getenv("NODE_BINARY") ?: "/usr/local/bin/node").toString()
+    ]
+    //
+    //   The command to run when bundling. By default is 'bundle'
+    // bundleCommand = "ram-bundle"
+    //
+    //   The path to the CLI configuration file. Default is empty.
+    // bundleConfig = file(../rn-cli.config.js)
+    //
+    //   The name of the generated asset file containing your JS bundle
+    // bundleAssetName = "MyApplication.android.bundle"
+    //
+    //   The entry file for bundle generation. Default is 'index.android.js' or 'index.js'
+    // entryFile = file("../js/MyApplication.android.js")
+    //
+    //   A list of extra flags to pass to the 'bundle' commands.
+    //   See https://github.com/react-native-community/cli/blob/main/docs/commands.md#bundle
+    // extraPackagerArgs = []
+
+    /* Hermes Commands */
+    //   The hermes compiler command to run. By default it is 'hermesc'
+    // hermesCommand = "$rootDir/my-custom-hermesc/bin/hermesc"
+    //
+    //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
+    // hermesFlags = ["-O", "-output-source-map"]
+
+    /* Autolinking */
+    autolinkLibrariesWithApp()
+}
+
+/**
+ * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+ */
+def enableProguardInReleaseBuilds = false
+
+/**
+ * The preferred build flavor of JavaScriptCore (JSC)
+ *
+ * For example, to use the international variant, you can use:
+ * `def jscFlavor = io.github.react-native-community:jsc-android-intl:2026004.+`
+ *
+ * The international variant includes ICU i18n library and necessary data
+ * allowing to use e.g. `Date.toLocaleString` and `String.localeCompare` that
+ * give correct results when using with locales other than en-US. Note that
+ * this variant is about 6MiB larger per architecture than default.
+ */
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace "studio.silverleaf.carassistantpro"
+    defaultConfig {
+        applicationId "studio.silverleaf.carassistantpro"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 30
+        versionName "1.2.0"
+        manifestPlaceholders = [
+            ADMOB_APP_ID: (project.findProperty("ADMOB_APP_ID") ?: "ca-app-pub-4934175729303466~3707392470")
+        ]
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        release {
+            storeFile rootProject.file("../../../android/keystore/car-assistant-pro.keystore")
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+// RN 0.76+: ensure codegen runs before CMake configuration.
+// Without this, add_subdirectory() in Android-autolinking.cmake fails because
+// the generated JNI dirs (e.g. async-storage, keychain, etc.) don't exist yet.
+afterEvaluate {
+    tasks.configureEach { task ->
+        if (task.name.startsWith("configureCMake")) {
+            task.dependsOn tasks.matching { t -> t.name.startsWith("generateCodegenArtifacts") }
+        }
+    }
+}
+
+dependencies {
+    // The version of react-native is set by the React Native Gradle Plugin
+    implementation("com.facebook.react:react-android")
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}

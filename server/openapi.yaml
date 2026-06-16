@@ -1,0 +1,735 @@
+openapi: 3.0.3
+info:
+  title: Sylex Assistant Pro API
+  description: |
+    Cloud backend API for Sylex Assistant Pro - providing ASR (Automatic Speech Recognition),
+    NLU/Chat, and TTS (Text-to-Speech) services for in-vehicle voice assistant.
+    
+    This API is designed for automotive integration with focus on:
+    - Low latency (<300ms TTFB, <1.5s E2E)
+    - Safety-first design
+    - Multilingual support (DE primary)
+    - Streaming support for real-time interaction
+  version: 1.0.0
+  contact:
+    name: Sylex Assistant Pro Team
+    email: support@car-assistant-pro.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.car-assistant-pro.com/v1
+    description: Production server
+  - url: https://staging-api.car-assistant-pro.com/v1
+    description: Staging server
+  - url: http://localhost:3000/v1
+    description: Local development server
+
+tags:
+  - name: ASR
+    description: Automatic Speech Recognition endpoints
+  - name: Chat
+    description: Natural Language Understanding and dialogue management
+  - name: TTS
+    description: Text-to-Speech synthesis
+  - name: Voice
+    description: Hands-free voice pipeline endpoints
+  - name: Health
+    description: Health check and monitoring
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns the service health status
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                required:
+                  - status
+                  - timestamp
+
+  /asr:
+    post:
+      tags:
+        - ASR
+      summary: Convert speech to text
+      description: |
+        Transcribes audio input to text using cloud ASR provider.
+        Supports multiple audio formats and languages.
+        Returns transcript with confidence score.
+      operationId: speechToText
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Audio file (WAV, MP3, FLAC, OGG)
+                language:
+                  type: string
+                  description: BCP-47 language code
+                  default: de-DE
+                  example: de-DE
+                  enum:
+                    - de-DE
+                    - en-US
+                    - en-GB
+                    - fr-FR
+                enableProfanityFilter:
+                  type: boolean
+                  default: true
+                enableAutomaticPunctuation:
+                  type: boolean
+                  default: true
+                model:
+                  type: string
+                  description: ASR model variant
+                  default: default
+                  enum:
+                    - default
+                    - automotive
+                    - command
+              required:
+                - audio
+      responses:
+        '200':
+          description: Transcription successful
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+              description: Unique request identifier for tracing
+            X-Processing-Time-Ms:
+              schema:
+                type: integer
+              description: Server processing time in milliseconds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsrResponse'
+        '400':
+          description: Bad request (invalid audio format, missing required fields)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload too large (audio file exceeds size limit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+              description: Request limit per time window
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: Remaining requests in current window
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+              description: Unix timestamp when rate limit resets
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds to wait before retry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable (ASR provider down)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /asr/stream:
+    post:
+      tags:
+        - ASR
+      summary: Stream speech to text (WebSocket upgrade)
+      description: |
+        Establishes WebSocket connection for streaming ASR.
+        Client sends audio chunks, server returns partial and final transcripts.
+      operationId: speechToTextStream
+      parameters:
+        - name: Upgrade
+          in: header
+          required: true
+          schema:
+            type: string
+            enum: [websocket]
+        - name: Connection
+          in: header
+          required: true
+          schema:
+            type: string
+            enum: [Upgrade]
+      responses:
+        '101':
+          description: Switching Protocols to WebSocket
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /chat:
+    post:
+      tags:
+        - Chat
+      summary: Process natural language query
+      description: |
+        Processes user text input through NLU pipeline and dialogue manager.
+        Returns intent classification, slot values, and assistant response.
+      operationId: processChat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                  description: User input text
+                  maxLength: 500
+                  example: "Navigate to nearest charging station"
+                sessionId:
+                  type: string
+                  description: Session identifier for context continuity
+                  format: uuid
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+                context:
+                  type: object
+                  description: Additional context (location, vehicle state, etc.)
+                  additionalProperties: true
+                  example:
+                    location:
+                      lat: 52.520008
+                      lon: 13.404954
+                    vehicleState:
+                      batteryLevel: 45
+                      speed: 0
+                language:
+                  type: string
+                  default: de-DE
+                  example: de-DE
+              required:
+                - text
+      responses:
+        '200':
+          description: Chat processing successful
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+            X-Processing-Time-Ms:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /voice/text:
+    post:
+      tags:
+        - Voice
+      summary: Fast voice pipeline (text in → chat → optional TTS out)
+      description: |
+        Optimal voice pipeline: accepts an on-device STT transcript and returns the
+        assistant reply plus optional server-synthesised audio.
+
+        Skips audio upload and server ASR, saving 400–900 ms per request compared to
+        the legacy audio-upload pipeline.
+
+        Requires a Premium subscription (`isPremium` Firebase custom claim).
+
+        JSON body fields:
+          - `text` — transcript from on-device STT (required)
+          - `sessionId` — conversation session ID (required)
+          - `mode` — `personal | business | kids | car` (default: `personal`)
+          - `language` — BCP-47 language code (default: `en-US`)
+          - `parentUid` — required when `mode = kids`
+          - `skipTts` — when `true` the server skips TTS synthesis; client handles
+            playback on-device (default: `false`)
+      operationId: voiceTextPipeline
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                  description: Transcript from on-device STT
+                  example: "Navigate to the nearest charging station"
+                sessionId:
+                  type: string
+                  description: Conversation session identifier
+                  example: "abc123xyz"
+                mode:
+                  type: string
+                  description: Assistant mode
+                  default: personal
+                  enum:
+                    - personal
+                    - voice
+                    - business
+                    - kids
+                    - car
+                language:
+                  type: string
+                  description: BCP-47 language code
+                  default: en-US
+                  example: en-US
+                parentUid:
+                  type: string
+                  description: Parent user UID (required when mode = kids)
+                skipTts:
+                  type: boolean
+                  description: Skip server-side TTS synthesis; client handles playback
+                  default: false
+              required:
+                - text
+                - sessionId
+      responses:
+        '200':
+          description: Pipeline completed successfully
+          headers:
+            X-Processing-Time-Ms:
+              schema:
+                type: integer
+              description: Total server processing time in milliseconds
+            X-Chat-Time-Ms:
+              schema:
+                type: integer
+              description: Chat processing time in milliseconds
+            X-TTS-Time-Ms:
+              schema:
+                type: integer
+              description: TTS synthesis time in milliseconds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoiceTextResponse'
+        '400':
+          description: Bad request (missing or invalid fields)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Premium subscription required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds to wait before retry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tts:
+    post:
+      tags:
+        - TTS
+      summary: Convert text to speech
+      description: |
+        Synthesizes speech audio from text input.
+        Returns audio in specified format.
+      operationId: textToSpeech
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                  description: Text to synthesize
+                  maxLength: 1000
+                  example: "Navigating to nearest charging station"
+                language:
+                  type: string
+                  default: de-DE
+                  example: de-DE
+                voice:
+                  type: string
+                  description: Voice identifier
+                  default: default
+                  example: "de-DE-Neural2-F"
+                audioFormat:
+                  type: string
+                  description: Output audio format
+                  default: mp3
+                  enum:
+                    - mp3
+                    - wav
+                    - ogg
+                speakingRate:
+                  type: number
+                  description: Speaking rate (0.5 to 2.0)
+                  default: 1.0
+                  minimum: 0.5
+                  maximum: 2.0
+                pitch:
+                  type: number
+                  description: Voice pitch (-20.0 to 20.0)
+                  default: 0.0
+                  minimum: -20.0
+                  maximum: 20.0
+              required:
+                - text
+      responses:
+        '200':
+          description: TTS synthesis successful
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+            X-Processing-Time-Ms:
+              schema:
+                type: integer
+            Content-Type:
+              schema:
+                type: string
+              description: audio/mpeg, audio/wav, or audio/ogg
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+            audio/ogg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Text too long
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    VoiceTextResponse:
+      type: object
+      properties:
+        transcript:
+          type: string
+          description: The input transcript (echo of the request `text` field)
+          example: "Navigate to the nearest charging station"
+        response:
+          type: string
+          description: Assistant reply text
+          example: "Navigating to the nearest charging station, 2.3 km away"
+        audio:
+          type: string
+          nullable: true
+          description: Base64-encoded MP3 audio of the assistant reply; null when skipTts=true
+        audioMimeType:
+          type: string
+          description: MIME type of the audio data
+          example: "audio/mpeg"
+        sessionId:
+          type: string
+          description: Conversation session identifier
+        language:
+          type: string
+          description: Language used for this request
+          example: "en-US"
+        mode:
+          type: string
+          description: Assistant mode used for this request
+          example: "personal"
+      required:
+        - transcript
+        - response
+        - sessionId
+        - language
+        - mode
+
+    AsrResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Unique request identifier
+        transcript:
+          type: string
+          description: Recognized text from audio
+          example: "Navigate to nearest charging station"
+        confidence:
+          type: number
+          format: float
+          description: Confidence score (0.0 to 1.0)
+          minimum: 0.0
+          maximum: 1.0
+          example: 0.95
+        language:
+          type: string
+          description: Detected language
+          example: "de-DE"
+        alternatives:
+          type: array
+          description: Alternative transcriptions
+          items:
+            type: object
+            properties:
+              transcript:
+                type: string
+              confidence:
+                type: number
+                format: float
+        processingTimeMs:
+          type: integer
+          description: Processing time in milliseconds
+          example: 287
+      required:
+        - requestId
+        - transcript
+        - confidence
+        - language
+        - processingTimeMs
+
+    ChatResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        sessionId:
+          type: string
+          format: uuid
+        intent:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Intent identifier
+              example: "navigate_to_poi"
+            confidence:
+              type: number
+              format: float
+              minimum: 0.0
+              maximum: 1.0
+              example: 0.92
+        slots:
+          type: object
+          description: Extracted slot values
+          additionalProperties: true
+          example:
+            poi_type: "charging_station"
+            modifier: "nearest"
+        response:
+          type: object
+          properties:
+            text:
+              type: string
+              description: Assistant response text
+              example: "Navigating to the nearest charging station, 2.3 km away"
+            action:
+              type: string
+              description: Action to execute
+              example: "navigate"
+            parameters:
+              type: object
+              description: Action parameters
+              additionalProperties: true
+        processingTimeMs:
+          type: integer
+      required:
+        - requestId
+        - sessionId
+        - intent
+        - response
+        - processingTimeMs
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Error code
+              enum:
+                - INVALID_REQUEST
+                - INVALID_AUDIO_FORMAT
+                - AUDIO_TOO_LARGE
+                - TEXT_TOO_LONG
+                - RATE_LIMIT_EXCEEDED
+                - UNAUTHORIZED
+                - PROVIDER_ERROR
+                - INTERNAL_ERROR
+                - SERVICE_UNAVAILABLE
+              example: "INVALID_AUDIO_FORMAT"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Unsupported audio format. Supported formats: WAV, MP3, FLAC, OGG"
+            details:
+              type: object
+              description: Additional error details
+              additionalProperties: true
+            requestId:
+              type: string
+              format: uuid
+              description: Request ID for tracking
+          required:
+            - code
+            - message
+      required:
+        - error
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+security:
+  - BearerAuth: []
+
+x-rate-limits:
+  asr:
+    requests: 100
+    window: 60s
+    burst: 10
+  chat:
+    requests: 200
+    window: 60s
+    burst: 20
+  tts:
+    requests: 100
+    window: 60s
+    burst: 10
+
+x-size-limits:
+  asr:
+    maxAudioSize: 10MB
+    maxDuration: 60s
+  tts:
+    maxTextLength: 1000

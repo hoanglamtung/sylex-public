@@ -1,0 +1,8 @@
+{
+  "name": "AssistantPro",
+  "displayName": "AssistantPro",
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-4934175729303466~3707392470",
+    "ios_app_id": "ca-app-pub-4934175729303466~2964119031"
+  }
+}
